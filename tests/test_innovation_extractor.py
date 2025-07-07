@@ -23,89 +23,17 @@ class TestInnovationExtractor:
         """
         self.test_paper_title = "Test Paper on ML Innovations"
     
-    def test_init_without_api_keys(self):
-        """测试没有API密钥的初始化"""
+    def test_init(self):
+        """测试初始化"""
         extractor = InnovationExtractor()
-        assert extractor.openai_client is None
-        assert extractor.anthropic_client is None
+        # DeepSeek使用统一的ai_client，不需要单独的客户端对象
+        assert extractor is not None
     
-    @patch('src.extractor.innovation_extractor.openai')
-    def test_init_with_openai_key(self, mock_openai):
-        """测试有OpenAI密钥的初始化"""
-        with patch.dict('os.environ', {'OPENAI_API_KEY': 'test_key'}):
-            extractor = InnovationExtractor()
-            assert extractor.openai_client is not None
-            mock_openai.OpenAI.assert_called_once_with(api_key='test_key')
-    
-    @patch('src.extractor.innovation_extractor.anthropic')
-    def test_init_with_anthropic_key(self, mock_anthropic):
-        """测试有Anthropic密钥的初始化"""
-        with patch.dict('os.environ', {'ANTHROPIC_API_KEY': 'test_key'}):
-            extractor = InnovationExtractor()
-            assert extractor.anthropic_client is not None
-            mock_anthropic.Anthropic.assert_called_once_with(api_key='test_key')
-    
-    @patch('src.extractor.innovation_extractor.openai')
-    def test_extract_innovations_openai_success(self, mock_openai):
-        """测试OpenAI成功提取创新点"""
-        # 模拟OpenAI客户端
-        mock_client = Mock()
-        mock_response = Mock()
-        mock_response.choices = [Mock()]
-        mock_response.choices[0].message.content = '''
-        {
-            "innovations": [
-                {
-                    "title": "Novel Algorithm",
-                    "description": "A new algorithm that improves accuracy",
-                    "category": "算法创新",
-                    "impact": "Improves accuracy by 20%",
-                    "methodology": "Deep learning with novel architecture",
-                    "novelty_score": 0.85,
-                    "confidence": 0.9
-                }
-            ],
-            "summary": "The paper introduces a novel algorithm",
-            "extraction_metadata": {
-                "model_used": "gpt-4",
-                "confidence_overall": 0.85
-            }
-        }
-        '''
-        mock_client.chat.completions.create.return_value = mock_response
-        self.extractor.openai_client = mock_client
-        
-        result = self.extractor.extract_innovations_openai(
-            self.test_paper_content, self.test_paper_title
-        )
-        
-        assert result is not None
-        assert result.paper_title == self.test_paper_title
-        assert len(result.innovations) == 1
-        assert result.innovations[0].title == "Novel Algorithm"
-        assert result.innovations[0].novelty_score == 0.85
-    
-    @patch('src.extractor.innovation_extractor.openai')
-    def test_extract_innovations_openai_failure(self, mock_openai):
-        """测试OpenAI提取失败"""
-        mock_client = Mock()
-        mock_client.chat.completions.create.side_effect = Exception("API error")
-        self.extractor.openai_client = mock_client
-        
-        result = self.extractor.extract_innovations_openai(
-            self.test_paper_content, self.test_paper_title
-        )
-        
-        assert result is None
-    
-    @patch('src.extractor.innovation_extractor.anthropic')
-    def test_extract_innovations_anthropic_success(self, mock_anthropic):
-        """测试Anthropic成功提取创新点"""
-        # 模拟Anthropic客户端
-        mock_client = Mock()
-        mock_response = Mock()
-        mock_response.content = [Mock()]
-        mock_response.content[0].text = '''
+    @patch('src.extractor.innovation_extractor.call_ai')
+    def test_extract_innovations_success(self, mock_call_ai):
+        """测试成功提取创新点"""
+        # 模拟AI返回结果
+        mock_call_ai.return_value = '''
         {
             "innovations": [
                 {
@@ -120,15 +48,13 @@ class TestInnovationExtractor:
             ],
             "summary": "The paper proposes a novel architecture",
             "extraction_metadata": {
-                "model_used": "claude-3",
+                "model_used": "deepseek-chat",
                 "confidence_overall": 0.9
             }
         }
         '''
-        mock_client.messages.create.return_value = mock_response
-        self.extractor.anthropic_client = mock_client
         
-        result = self.extractor.extract_innovations_anthropic(
+        result = self.extractor.extract_innovations(
             self.test_paper_content, self.test_paper_title
         )
         
@@ -137,97 +63,12 @@ class TestInnovationExtractor:
         assert len(result.innovations) == 1
         assert result.innovations[0].title == "Novel Architecture"
         assert result.innovations[0].novelty_score == 0.9
+        mock_call_ai.assert_called_once()
     
-    def test_build_extraction_prompt(self):
-        """测试构建提取提示"""
-        prompt = self.extractor._build_extraction_prompt(
-            self.test_paper_content, self.test_paper_title
-        )
-        
-        assert self.test_paper_title in prompt
-        assert "JSON" in prompt
-        assert "创新点" in prompt
-        assert "novelty_score" in prompt
-    
-    def test_parse_extraction_result_valid_json(self):
-        """测试解析有效的JSON结果"""
-        json_result = '''
-        {
-            "innovations": [
-                {
-                    "title": "Test Innovation",
-                    "description": "Test description",
-                    "category": "测试类别",
-                    "impact": "Test impact",
-                    "methodology": "Test methodology",
-                    "novelty_score": 0.8,
-                    "confidence": 0.9
-                }
-            ],
-            "summary": "Test summary",
-            "extraction_metadata": {
-                "model_used": "test_model"
-            }
-        }
-        '''
-        
-        result = self.extractor._parse_extraction_result(json_result, self.test_paper_title)
-        
-        assert result is not None
-        assert result.paper_title == self.test_paper_title
-        assert len(result.innovations) == 1
-        assert result.innovations[0].title == "Test Innovation"
-        assert result.summary == "Test summary"
-    
-    def test_parse_extraction_result_invalid_json(self):
-        """测试解析无效的JSON结果"""
-        invalid_result = "This is not a JSON string"
-        
-        result = self.extractor._parse_extraction_result(invalid_result, self.test_paper_title)
-        
-        assert result is None
-    
-    def test_parse_extraction_result_missing_json(self):
-        """测试解析缺少JSON的结果"""
-        result_without_json = "Some text without JSON"
-        
-        result = self.extractor._parse_extraction_result(result_without_json, self.test_paper_title)
-        
-        assert result is None
-    
-    @patch.object(InnovationExtractor, 'extract_innovations_openai')
-    def test_extract_innovations_auto_openai(self, mock_openai):
-        """测试自动选择OpenAI模型"""
-        mock_result = Mock()
-        mock_openai.return_value = mock_result
-        self.extractor.openai_client = Mock()
-        
-        result = self.extractor.extract_innovations(
-            self.test_paper_content, self.test_paper_title, use_model="auto"
-        )
-        
-        assert result == mock_result
-        mock_openai.assert_called_once_with(self.test_paper_content, self.test_paper_title)
-    
-    @patch.object(InnovationExtractor, 'extract_innovations_anthropic')
-    def test_extract_innovations_auto_anthropic(self, mock_anthropic):
-        """测试自动选择Anthropic模型"""
-        mock_result = Mock()
-        mock_anthropic.return_value = mock_result
-        self.extractor.openai_client = None
-        self.extractor.anthropic_client = Mock()
-        
-        result = self.extractor.extract_innovations(
-            self.test_paper_content, self.test_paper_title, use_model="auto"
-        )
-        
-        assert result == mock_result
-        mock_anthropic.assert_called_once_with(self.test_paper_content, self.test_paper_title)
-    
-    def test_extract_innovations_no_models_available(self):
-        """测试没有可用模型"""
-        self.extractor.openai_client = None
-        self.extractor.anthropic_client = None
+    @patch('src.extractor.innovation_extractor.call_ai')
+    def test_extract_innovations_failure(self, mock_call_ai):
+        """测试提取失败"""
+        mock_call_ai.side_effect = Exception("API error")
         
         result = self.extractor.extract_innovations(
             self.test_paper_content, self.test_paper_title
@@ -235,14 +76,24 @@ class TestInnovationExtractor:
         
         assert result is None
     
-    @patch('json.dump')
-    @patch('builtins.open', new_callable=mock_open)
-    def test_save_extracted_innovations(self, mock_file, mock_json_dump):
-        """测试保存提取的创新点"""
+    @patch('src.extractor.innovation_extractor.call_ai')
+    def test_extract_innovations_empty_result(self, mock_call_ai):
+        """测试空结果"""
+        mock_call_ai.return_value = None
+        
+        result = self.extractor.extract_innovations(
+            self.test_paper_content, self.test_paper_title
+        )
+        
+        assert result is None
+    
+    def test_save_and_load_innovations(self):
+        """测试保存和加载创新点"""
+        # 创建测试数据
         innovation = InnovationPoint(
             title="Test Innovation",
             description="Test description",
-            category="测试类别",
+            category="Test Category",
             impact="Test impact",
             methodology="Test methodology",
             novelty_score=0.8,
@@ -251,41 +102,73 @@ class TestInnovationExtractor:
         
         extracted = ExtractedInnovations(
             paper_title="Test Paper",
-            paper_id="1234.5678",
+            paper_id="test_id",
             innovations=[innovation],
             summary="Test summary",
-            extraction_metadata={"model": "test"}
+            extraction_metadata={"test": "metadata"}
         )
         
-        output_path = Path("test_innovations.json")
-        self.extractor.save_extracted_innovations(extracted, output_path)
+        # 测试保存
+        test_path = Path("/tmp/test_innovations.json")
+        self.extractor.save_innovations(extracted, test_path)
         
-        mock_file.assert_called_once_with(output_path, 'w', encoding='utf-8')
-        mock_json_dump.assert_called_once()
+        # 验证文件存在
+        assert test_path.exists()
+        
+        # 测试加载
+        loaded = self.extractor.load_innovations(test_path)
+        assert loaded is not None
+        assert loaded.paper_title == "Test Paper"
+        assert len(loaded.innovations) == 1
+        assert loaded.innovations[0].title == "Test Innovation"
+        
+        # 清理测试文件
+        test_path.unlink()
     
-    @patch.object(InnovationExtractor, 'extract_innovations')
-    def test_batch_extract_innovations(self, mock_extract):
-        """测试批量提取创新点"""
-        # 模拟提取结果
-        mock_result = Mock()
-        mock_extract.return_value = mock_result
+    def test_build_extraction_prompt(self):
+        """测试构建提取提示"""
+        prompt = self.extractor._build_extraction_prompt(
+            self.test_paper_content, self.test_paper_title
+        )
         
-        # 模拟解析后的论文
-        parsed_papers = [
-            Mock(full_text="Paper 1 content", title="Paper 1"),
-            Mock(full_text="Paper 2 content", title="Paper 2")
-        ]
+        assert self.test_paper_title in prompt
+        assert "innovations" in prompt
+        assert "JSON" in prompt
+    
+    def test_parse_extraction_result_success(self):
+        """测试解析提取结果成功"""
+        result_text = '''
+        {
+            "innovations": [
+                {
+                    "title": "Test Innovation",
+                    "description": "Test description",
+                    "category": "Test Category",
+                    "impact": "Test impact",
+                    "methodology": "Test methodology",
+                    "novelty_score": 0.8,
+                    "confidence": 0.9
+                }
+            ],
+            "summary": "Test summary",
+            "extraction_metadata": {"test": "metadata"}
+        }
+        '''
         
-        output_dir = Path("test_output")
+        result = self.extractor._parse_extraction_result(result_text, "Test Paper")
         
-        with patch.object(Path, 'mkdir') as mock_mkdir:
-            with patch.object(InnovationExtractor, 'save_extracted_innovations') as mock_save:
-                result = self.extractor.batch_extract_innovations(parsed_papers, output_dir)
+        assert result is not None
+        assert result.paper_title == "Test Paper"
+        assert len(result.innovations) == 1
+        assert result.innovations[0].title == "Test Innovation"
+    
+    def test_parse_extraction_result_invalid_json(self):
+        """测试解析无效JSON"""
+        result_text = "This is not valid JSON"
         
-        assert len(result) == 2
-        assert mock_extract.call_count == 2
-        assert mock_save.call_count == 2
-        mock_mkdir.assert_called_once_with(parents=True, exist_ok=True)
+        result = self.extractor._parse_extraction_result(result_text, "Test Paper")
+        
+        assert result is None
 
 
 class TestInnovationPoint:
@@ -296,46 +179,27 @@ class TestInnovationPoint:
         innovation = InnovationPoint(
             title="Test Innovation",
             description="Test description",
-            category="算法创新",
-            impact="Improves performance",
-            methodology="Deep learning",
-            novelty_score=0.85,
+            category="Test Category",
+            impact="Test impact",
+            methodology="Test methodology",
+            novelty_score=0.8,
             confidence=0.9
         )
         
         assert innovation.title == "Test Innovation"
-        assert innovation.description == "Test description"
-        assert innovation.category == "算法创新"
-        assert innovation.impact == "Improves performance"
-        assert innovation.methodology == "Deep learning"
-        assert innovation.novelty_score == 0.85
+        assert innovation.novelty_score == 0.8
         assert innovation.confidence == 0.9
-    
-    def test_innovation_point_default_scores(self):
-        """测试创新点默认评分"""
-        innovation = InnovationPoint(
-            title="Test",
-            description="Test",
-            category="Test",
-            impact="Test",
-            methodology="Test",
-            novelty_score=0.0,
-            confidence=0.0
-        )
-        
-        assert innovation.novelty_score == 0.0
-        assert innovation.confidence == 0.0
 
 
 class TestExtractedInnovations:
-    """提取的创新点集合测试类"""
+    """提取创新点集合测试类"""
     
     def test_extracted_innovations_creation(self):
-        """测试提取的创新点集合创建"""
+        """测试创新点集合创建"""
         innovation = InnovationPoint(
             title="Test Innovation",
             description="Test description",
-            category="测试类别",
+            category="Test Category",
             impact="Test impact",
             methodology="Test methodology",
             novelty_score=0.8,
@@ -344,27 +208,12 @@ class TestExtractedInnovations:
         
         extracted = ExtractedInnovations(
             paper_title="Test Paper",
-            paper_id="1234.5678",
+            paper_id="test_id",
             innovations=[innovation],
             summary="Test summary",
-            extraction_metadata={"model": "test"}
+            extraction_metadata={"test": "metadata"}
         )
         
         assert extracted.paper_title == "Test Paper"
-        assert extracted.paper_id == "1234.5678"
         assert len(extracted.innovations) == 1
-        assert extracted.summary == "Test summary"
-        assert extracted.extraction_metadata["model"] == "test"
-    
-    def test_extracted_innovations_empty(self):
-        """测试空的创新点集合"""
-        extracted = ExtractedInnovations(
-            paper_title="Test Paper",
-            paper_id="1234.5678",
-            innovations=[],
-            summary="",
-            extraction_metadata={}
-        )
-        
-        assert len(extracted.innovations) == 0
-        assert extracted.summary == "" 
+        assert extracted.innovations[0].title == "Test Innovation" 

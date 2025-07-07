@@ -39,8 +39,7 @@ def check_config():
         print("正在创建示例配置文件...")
         
         env_content = """# AI API配置
-OPENAI_API_KEY=your_openai_api_key_here
-ANTHROPIC_API_KEY=your_anthropic_api_key_here
+DEEPSEEK_API_KEY=your_deepseek_api_key_here
 
 # 其他配置
 DEBUG=True

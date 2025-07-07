@@ -6,8 +6,6 @@ import itertools
 from typing import List, Dict, Optional, Tuple
 from dataclasses import dataclass
 from pathlib import Path
-import openai
-import anthropic
 from loguru import logger
 from config.settings import settings
 from src.extractor.innovation_extractor import InnovationPoint, ExtractedInnovations
@@ -41,15 +39,9 @@ class IdeaGenerator:
     """创新想法生成器"""
     
     def __init__(self):
-        self.openai_client = None
-        self.anthropic_client = None
-        
-        # 初始化AI客户端
-        if settings.OPENAI_API_KEY:
-            self.openai_client = openai.OpenAI(api_key=settings.OPENAI_API_KEY)
-        
-        if settings.ANTHROPIC_API_KEY:
-            self.anthropic_client = anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY)
+        # 检查DeepSeek API配置
+        if not settings.DEEPSEEK_API_KEY:
+            logger.warning("未配置DEEPSEEK_API_KEY")
     
     def generate_ideas_from_innovations(self, innovations_list: List[ExtractedInnovations], 
                                       topic: str) -> Optional[IdeaGenerationResult]:
@@ -124,7 +116,7 @@ class IdeaGenerator:
             if len(category_innovations) >= 2:
                 combinations = list(itertools.combinations(category_innovations, 2))
                 for combo in combinations[:10]:  # 限制组合数量
-                    idea = self._create_combination_idea(combo, "intra_category")
+                    idea = self._create_combination_idea(list(combo), "intra_category")
                     if idea:
                         ideas.append(idea)
         
@@ -197,8 +189,8 @@ class IdeaGenerator:
         Returns:
             AI生成的想法
         """
-        if not self.openai_client and not self.anthropic_client and not settings.DEEPSEEK_API_KEY:
-            logger.warning("AI客户端不可用，跳过AI想法生成")
+        if not settings.DEEPSEEK_API_KEY:
+            logger.warning("DeepSeek API不可用，跳过AI想法生成")
             return []
         
         try:
@@ -214,34 +206,16 @@ class IdeaGenerator:
             
             prompt = self._build_ai_generation_prompt(innovations_data, topic)
             
-            if not self.openai_client:
-                response = self.openai_client.chat.completions.create(
-                    model=settings.OPENAI_MODEL,
-                    messages=[
-                        {"role": "system", "content": "你是一个创新研究专家，擅长基于现有创新点提出新的研究方向。"},
-                        {"role": "user", "content": prompt}
-                    ],
-                    max_tokens=settings.OPENAI_MAX_TOKENS,
-                    temperature=0.8
-                )
-                result_text = response.choices[0].message.content
-            elif not self.anthropic_client:
-                response = self.anthropic_client.messages.create(
-                    model=settings.ANTHROPIC_MODEL,
-                    max_tokens=4000,
-                    messages=[{"role": "user", "content": prompt}]
-                )
-                result_text = response.content[0].text
-            elif settings.DEEPSEEK_API_KEY:
-                # 使用 DeepSeek 生成新想法
-                system_prompt = "你是一个创新研究专家，擅长基于现有创新点提出新的研究方向。"
-                full_prompt = f"{system_prompt}\n\n{prompt}"
-                result_text = call_ai(full_prompt, provider="deepseek")
-            else:
-                logger.warning("没有可用的AI客户端")
-                return []
+            # 使用 DeepSeek 生成新想法
+            system_prompt = "你是一个创新研究专家，擅长基于现有创新点提出新的研究方向。"
+            full_prompt = f"{system_prompt}\n\n{prompt}"
+            result_text = call_ai(full_prompt)
             
-            return self._parse_ai_generation_result(result_text)
+            if result_text:
+                return self._parse_ai_generation_result(result_text)
+            else:
+                logger.warning("AI返回空结果")
+                return []
             
         except Exception as e:
             logger.error(f"AI生成想法失败: {e}")

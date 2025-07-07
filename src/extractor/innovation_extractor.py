@@ -5,8 +5,6 @@ import json
 from typing import List, Dict, Optional
 from dataclasses import dataclass
 from pathlib import Path
-import openai
-import anthropic
 from loguru import logger
 from config.settings import settings
 from src.utils.ai_client import call_ai
@@ -38,19 +36,13 @@ class InnovationExtractor:
     """创新点提取器"""
     
     def __init__(self):
-        self.openai_client = None
-        self.anthropic_client = None
-        
-        # 初始化AI客户端
-        if settings.OPENAI_API_KEY:
-            self.openai_client = openai.OpenAI(api_key=settings.OPENAI_API_KEY)
-        
-        if settings.ANTHROPIC_API_KEY:
-            self.anthropic_client = anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY)
+        # 检查DeepSeek API配置
+        if not settings.DEEPSEEK_API_KEY:
+            logger.warning("未配置DEEPSEEK_API_KEY")
     
-    def extract_innovations_openai(self, paper_content: str, paper_title: str) -> Optional[ExtractedInnovations]:
+    def extract_innovations(self, paper_content: str, paper_title: str) -> Optional[ExtractedInnovations]:
         """
-        使用OpenAI提取创新点
+        提取创新点
         
         Args:
             paper_content: 论文内容
@@ -59,73 +51,32 @@ class InnovationExtractor:
         Returns:
             提取的创新点
         """
-        if not self.openai_client:
-            logger.error("OpenAI客户端未初始化")
+        logger.info(f"开始提取论文创新点: {paper_title}")
+        
+        if not settings.DEEPSEEK_API_KEY:
+            logger.error("DeepSeek API密钥未配置")
             return None
         
         try:
             prompt = self._build_extraction_prompt(paper_content, paper_title)
+            logger.info(f"发送AI请求，论文: {paper_title}")
             
-            response = self.openai_client.chat.completions.create(
-                model=settings.OPENAI_MODEL,
-                messages=[
-                    {"role": "system", "content": "你是一个专业的学术论文分析专家，擅长识别和提取论文中的创新点。"},
-                    {"role": "user", "content": prompt}
-                ],
-                max_tokens=settings.OPENAI_MAX_TOKENS,
-                temperature=settings.OPENAI_TEMPERATURE
-            )
-            
-            result_text = response.choices[0].message.content
-            return self._parse_extraction_result(result_text, paper_title)
-            
+            result_text = call_ai(prompt)
+            if result_text:
+                logger.info(f"AI返回结果，长度: {len(result_text)}")
+                parsed_result = self._parse_extraction_result(result_text, paper_title)
+                if parsed_result:
+                    logger.info(f"成功解析创新点: {len(parsed_result.innovations)} 个")
+                    return parsed_result
+                else:
+                    logger.error("解析AI结果失败")
+                    return None
+            else:
+                logger.error("AI返回空结果")
+                return None
         except Exception as e:
-            logger.error(f"OpenAI提取创新点失败: {e}")
-            return None
-    
-    def extract_innovations_anthropic(self, paper_content: str, paper_title: str) -> Optional[ExtractedInnovations]:
-        """
-        使用Anthropic提取创新点
-        
-        Args:
-            paper_content: 论文内容
-            paper_title: 论文标题
-            
-        Returns:
-            提取的创新点
-        """
-        if not self.anthropic_client:
-            logger.error("Anthropic客户端未初始化")
-            return None
-        
-        try:
-            prompt = self._build_extraction_prompt(paper_content, paper_title)
-            
-            response = self.anthropic_client.messages.create(
-                model=settings.ANTHROPIC_MODEL,
-                max_tokens=4000,
-                messages=[
-                    {"role": "user", "content": prompt}
-                ]
-            )
-            
-            result_text = response.content[0].text
-            return self._parse_extraction_result(result_text, paper_title)
-            
-        except Exception as e:
-            logger.error(f"Anthropic提取创新点失败: {e}")
-            return None
-    
-    def extract_innovations_deepseek(self, paper_content: str, paper_title: str) -> Optional[ExtractedInnovations]:
-        """
-        使用DeepSeek提取创新点
-        """
-        try:
-            prompt = self._build_extraction_prompt(paper_content, paper_title)
-            result_text = call_ai(prompt, provider="deepseek")
-            return self._parse_extraction_result(result_text, paper_title)
-        except Exception as e:
-            logger.error(f"DeepSeek提取创新点失败: {e}")
+            logger.error(f"提取创新点失败: {e}")
+            logger.error(f"错误类型: {type(e).__name__}")
             return None
     
     def _build_extraction_prompt(self, paper_content: str, paper_title: str) -> str:
@@ -225,37 +176,87 @@ class InnovationExtractor:
             logger.error(f"解析提取结果失败: {e}")
             return None
     
-    def extract_innovations(self, paper_content: str, paper_title: str, use_model: str = "auto") -> Optional[ExtractedInnovations]:
+    def save_innovations(self, innovations: ExtractedInnovations, output_path: Path):
         """
-        提取创新点（自动选择模型）
+        保存创新点到文件
         
         Args:
-            paper_content: 论文内容
-            paper_title: 论文标题
-            use_model: 使用的模型 ("openai", "anthropic", "deepseek", "auto")
+            innovations: 创新点对象
+            output_path: 输出路径
+        """
+        try:
+            # 转换为字典格式
+            data = {
+                "paper_title": innovations.paper_title,
+                "paper_id": innovations.paper_id,
+                "innovations": [
+                    {
+                        "title": inn.title,
+                        "description": inn.description,
+                        "category": inn.category,
+                        "impact": inn.impact,
+                        "methodology": inn.methodology,
+                        "novelty_score": inn.novelty_score,
+                        "confidence": inn.confidence
+                    }
+                    for inn in innovations.innovations
+                ],
+                "summary": innovations.summary,
+                "extraction_metadata": innovations.extraction_metadata
+            }
+            
+            # 保存到JSON文件
+            with open(output_path, 'w', encoding='utf-8') as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+            
+            logger.info(f"创新点已保存到: {output_path}")
+            
+        except Exception as e:
+            logger.error(f"保存创新点失败: {e}")
+    
+    def load_innovations(self, input_path: Path) -> Optional[ExtractedInnovations]:
+        """
+        从文件加载创新点
+        
+        Args:
+            input_path: 输入路径
             
         Returns:
-            提取的创新点
+            创新点对象
         """
-        logger.info(f"开始提取论文创新点: {paper_title}")
-        
-        if use_model == "openai" or (use_model == "auto" and self.openai_client):
-            result = self.extract_innovations_openai(paper_content, paper_title)
-            if result:
-                return result
-        
-        if use_model == "anthropic" or (use_model == "auto" and self.anthropic_client):
-            result = self.extract_innovations_anthropic(paper_content, paper_title)
-            if result:
-                return result
-        
-        if use_model == "deepseek" or (use_model == "auto" and settings.DEEPSEEK_API_KEY):
-            result = self.extract_innovations_deepseek(paper_content, paper_title)
-            if result:
-                return result
-        
-        logger.error("所有AI模型都不可用")
-        return None
+        try:
+            with open(input_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            
+            # 构建创新点对象
+            innovations = []
+            for inn_data in data.get("innovations", []):
+                innovation = InnovationPoint(
+                    title=inn_data.get("title", ""),
+                    description=inn_data.get("description", ""),
+                    category=inn_data.get("category", ""),
+                    impact=inn_data.get("impact", ""),
+                    methodology=inn_data.get("methodology", ""),
+                    novelty_score=float(inn_data.get("novelty_score", 0.5)),
+                    confidence=float(inn_data.get("confidence", 0.5))
+                )
+                innovations.append(innovation)
+            
+            # 构建结果对象
+            extracted = ExtractedInnovations(
+                paper_title=data.get("paper_title", ""),
+                paper_id=data.get("paper_id", ""),
+                innovations=innovations,
+                summary=data.get("summary", ""),
+                extraction_metadata=data.get("extraction_metadata", {})
+            )
+            
+            logger.info(f"成功加载 {len(innovations)} 个创新点")
+            return extracted
+            
+        except Exception as e:
+            logger.error(f"加载创新点失败: {e}")
+            return None
     
     def save_extracted_innovations(self, extracted: ExtractedInnovations, output_path: Path):
         """

@@ -28,14 +28,11 @@ class Settings(BaseSettings):
     ARXIV_SORT_BY: str = "submittedDate"
     ARXIV_SORT_ORDER: str = "descending"
     
-    # AI模型设置
-    OPENAI_API_KEY: Optional[str] = None
-    OPENAI_MODEL: str = "gpt-4"
-    OPENAI_MAX_TOKENS: int = 4000
-    OPENAI_TEMPERATURE: float = 0.7
-    
-    ANTHROPIC_API_KEY: Optional[str] = None
-    ANTHROPIC_MODEL: str = "claude-3-sonnet-20240229"
+    # DeepSeek API设置
+    DEEPSEEK_API_KEY: Optional[str] = None
+    DEEPSEEK_MODEL: str = "deepseek-chat"
+    DEEPSEEK_MAX_TOKENS: int = 4000
+    DEEPSEEK_TEMPERATURE: float = 0.7
     
     # 文件处理设置
     MAX_PDF_SIZE_MB: int = 50
@@ -53,13 +50,6 @@ class Settings(BaseSettings):
     # Web UI设置
     STREAMLIT_PORT: int = 8501
     STREAMLIT_HOST: str = "localhost"
-    
-    # DeepSeek API设置
-    DEEPSEEK_API_KEY: Optional[str] = None
-    DEEPSEEK_MODEL: str = "deepseek-chat"
-    
-    # AI_PROVIDER设置
-    AI_PROVIDER: str = os.getenv("AI_PROVIDER", "openai")
     
     class Config:
         env_file = ".env"

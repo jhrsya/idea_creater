@@ -106,8 +106,7 @@ def parse(input_dir, output_dir):
 @cli.command()
 @click.option('--input-dir', '-i', default='data/extracted', help='解析文件目录')
 @click.option('--output-dir', '-o', default='data/innovations', help='输出目录')
-@click.option('--model', '-m', default='auto', help='AI模型 (openai/anthropic/auto)')
-def extract(input_dir, output_dir, model):
+def extract(input_dir, output_dir):
     """提取创新点"""
     logger.info("开始提取创新点")
     
@@ -120,8 +119,8 @@ def extract(input_dir, output_dir, model):
             return
         
         # 检查AI配置
-        if not settings.OPENAI_API_KEY and not settings.ANTHROPIC_API_KEY:
-            logger.error("未配置AI API密钥")
+        if not settings.DEEPSEEK_API_KEY:
+            logger.error("未配置DeepSeek API密钥")
             return
         
         extractor = InnovationExtractor()
@@ -153,8 +152,7 @@ def extract(input_dir, output_dir, model):
 @click.option('--input-dir', '-i', default='data/innovations', help='创新点文件目录')
 @click.option('--output-dir', '-o', default='data/results', help='输出目录')
 @click.option('--topic', '-t', required=True, help='研究主题')
-@click.option('--model', '-m', default='auto', help='AI模型 (openai/anthropic/auto)')
-def generate(input_dir, output_dir, topic, model):
+def generate(input_dir, output_dir, topic):
     """生成新想法"""
     logger.info(f"开始生成想法，主题: {topic}")
     
@@ -167,8 +165,8 @@ def generate(input_dir, output_dir, topic, model):
             return
         
         # 检查AI配置
-        if not settings.OPENAI_API_KEY and not settings.ANTHROPIC_API_KEY:
-            logger.error("未配置AI API密钥")
+        if not settings.DEEPSEEK_API_KEY:
+            logger.error("未配置DeepSeek API密钥")
             return
         
         generator = IdeaGenerator()
@@ -238,8 +236,7 @@ def setup():
         env_file = Path(".env")
         if not env_file.exists():
             env_content = """# AI API配置
-OPENAI_API_KEY=your_openai_api_key_here
-ANTHROPIC_API_KEY=your_anthropic_api_key_here
+DEEPSEEK_API_KEY=your_deepseek_api_key_here
 
 # 其他配置
 DEBUG=True

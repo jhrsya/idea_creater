@@ -14,8 +14,6 @@ pip install -r requirements.txt
 编辑 `.env` 文件，添加你的AI API密钥：
 ```bash
 # AI API配置
-OPENAI_API_KEY=your_openai_api_key_here
-ANTHROPIC_API_KEY=your_anthropic_api_key_here
 DEEPSEEK_API_KEY=your_deepseek_api_key_here
 
 # 其他配置
@@ -29,8 +27,17 @@ python main.py setup
 ```
 
 ### 4. 启动应用
+
+#### 🌟 一键式Web界面（推荐）
 ```bash
-# 方式1: 使用启动脚本（推荐）
+# 启动一键式Web界面
+python run_ui.py
+```
+然后在浏览器中访问 `http://localhost:8501`，输入研究主题即可一键生成创新点！
+
+#### 其他启动方式
+```bash
+# 方式1: 使用启动脚本
 python start.py
 
 # 方式2: 直接启动Web界面
@@ -54,7 +61,7 @@ python example.py
 
 ### 3. 创新点提取模块
 - **功能**: 使用AI模型分析论文，识别和提取创新点
-- **技术栈**: OpenAI GPT / Claude API + 提示工程
+- **技术栈**: DeepSeek API + 提示工程
 - **输出**: 每篇论文的创新点列表
 
 ### 4. 创新点组合生成模块
@@ -98,7 +105,7 @@ python main.py parse -i data/papers -o data/extracted
 python main.py extract --provider deepseek
 
 # 指定AI模型
-python main.py extract -m openai
+python main.py extract
 ```
 
 #### 生成新想法
@@ -107,7 +114,7 @@ python main.py extract -m openai
 python main.py generate -t "深度学习在自然语言处理中的应用" --provider deepseek
 
 # 指定输入输出目录
-python main.py generate -i data/innovations -o data/results -t "AI应用" --provider openai
+python main.py generate -i data/innovations -o data/results -t "AI应用"
 ```
 
 #### 启动Web界面
@@ -119,7 +126,22 @@ python main.py web
 python main.py web -p 8080 -h 0.0.0.0
 ```
 
-### Web界面使用
+### 🌟 一键式Web界面使用
+
+1. 运行 `python run_ui.py` 启动Web界面
+2. 在浏览器中访问 `http://localhost:8501`
+3. 在"🚀 一键生成"页面输入研究主题（如：machine learning, transformer）
+4. 点击"🚀 开始生成"按钮
+5. 系统将自动完成以下流程：
+   - 🔍 搜索相关论文
+   - 📥 下载论文PDF
+   - 📖 解析论文内容
+   - 💡 提取创新点
+   - 🚀 生成新想法
+6. 查看美观的创新点展示和分析结果
+7. 在"📊 结果分析"页面查看历史记录和可视化图表
+
+### 传统Web界面使用
 
 1. 启动Web界面后，在浏览器中访问 `http://localhost:8501`
 2. 使用侧边栏导航不同功能模块
@@ -164,19 +186,14 @@ idea_creater/
 ## 🔧 配置说明
 
 ### 环境变量
-- `OPENAI_API_KEY`: OpenAI API密钥
-- `ANTHROPIC_API_KEY`: Anthropic API密钥
 - `DEEPSEEK_API_KEY`: DeepSeek API密钥
 - `DEBUG`: 调试模式
 - `LOG_LEVEL`: 日志级别
-- `AI_PROVIDER`: 选择AI服务商（openai, anthropic, deepseek）
 
 ### 设置选项
 - `ARXIV_MAX_RESULTS`: ArXiv最大搜索结果数
 - `CRAWL_DELAY`: 爬取延迟时间
 - `MAX_PDF_SIZE_MB`: PDF文件最大大小
-- `OPENAI_MODEL`: OpenAI模型名称
-- `ANTHROPIC_MODEL`: Anthropic模型名称
 - `DEEPSEEK_MODEL`: DeepSeek模型名称
 
 ## 📊 输出格式
@@ -305,7 +322,7 @@ pytest tests/test_pdf_parser.py
 
 ## ⚠️ 注意事项
 
-1. **API限制**: 请遵守OpenAI和Anthropic的API使用限制
+1. **API限制**: 请遵守DeepSeek的API使用限制
 2. **论文版权**: 请遵守ArXiv论文的使用规范
 3. **数据隐私**: 不要上传敏感数据
 4. **资源消耗**: 大规模处理可能需要较多时间和资源
@@ -325,7 +342,6 @@ pytest tests/test_pdf_parser.py
 ## 🙏 致谢
 
 - [ArXiv](https://arxiv.org/) - 提供论文数据
-- [OpenAI](https://openai.com/) - 提供AI模型API
-- [Anthropic](https://www.anthropic.com/) - 提供Claude模型API
+- [DeepSeek](https://www.deepseek.com/) - 提供AI模型API
 - [Streamlit](https://streamlit.io/) - 提供Web框架
 - [PyPDF2](https://pypdf2.readthedocs.io/) - PDF处理库
